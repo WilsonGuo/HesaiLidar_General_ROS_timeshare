@@ -1,0 +1,7 @@
+<!-- multi_hesai_xt32.launch -->
+<launch>
+    <include file="/home/wilson/catkin_ws_sync/src/HesaiLidar_General_ROS/launch/hesai_lidar_xt16.launch"></include>
+    <include file="/home/wilson/catkin_ws_sync/src/HesaiLidar_General_ROS/launch/hesai_lidar_xt32.launch"></include>
+    <!-- <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz" args="-d $(find hesai_lidar)/rviz/lidar.rviz" /> -->
+
+</launch>
