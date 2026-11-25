@@ -1,4 +1,7 @@
-# Introduction to HesaiLidar_ROS_2.0
+## 添加了TimeShare机制，配套新版的硬件同步器，辅助雷达和相机的时间戳对齐
+----
+
+# Introduction to HesaiLidar_ROS
 This repository includes the ROS Driver for Hesai LiDAR sensor manufactured by Hesai Technology. 
 Developed based on [HesaiLidar_SDK_2.0](https://github.com/HesaiTechnology/HesaiLidar_SDK_2.0), After launched, the project will monitor UDP packets from Lidar,parse data and publish point cloud frames into ROS topic
 
