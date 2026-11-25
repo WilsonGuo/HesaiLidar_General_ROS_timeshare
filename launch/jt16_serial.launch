@@ -1,0 +1,7 @@
+<launch>
+  <!-- JT16 serial (RS485 point cloud + RS232 command) headless launch -->
+  <arg name="config_path" default="$(find hesai_ros_driver)/config/jt16_serial.yaml"/>
+  <node pkg="hesai_ros_driver" name="hesai_ros_driver_node" type="hesai_ros_driver_node" output="screen">
+    <param name="config_path" value="$(arg config_path)"/>
+  </node>
+</launch>

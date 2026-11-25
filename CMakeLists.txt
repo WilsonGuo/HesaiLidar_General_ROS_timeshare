@@ -1,138 +1,308 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(hesai_lidar)
+cmake_minimum_required(VERSION 3.5)
+cmake_policy(SET CMP0048 NEW)
+project(hesai_ros_driver)
 
-# Compile as C++11, supported in ROS Kinetic and newer
+#=======================================
+# Version information
+#=======================================
+set(VERSION_MAJOR 2)
+set(VERSION_MINOR 0)
+set(VERSION_TINY  12)
+configure_file(
+  "${CMAKE_CURRENT_SOURCE_DIR}/Version.h.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/Version.h"
+)
 
-ADD_COMPILE_OPTIONS(-std=c++11 )
-ADD_COMPILE_OPTIONS(-std=c++14 )
+set(WITH_PTCS_USE ON CACHE BOOL "Use Ptcs")
+# set(FIND_CUDA ON CACHE BOOL "Find CUDA")
 
-find_package( Boost REQUIRED  COMPONENTS thread)
-find_package(PCL REQUIRED)
+if(FIND_CUDA)
+    find_package(CUDA )
+endif()
+if(${CUDA_FOUND})
+  	project(CommonModules LANGUAGES CXX CUDA)
+	set(CUDA_SOURCE_PROPERTY_FORMAT OBJ)
+	set(CUDA_SEPARABLE_COMPILATION ON)
+	include_directories(${CUDA_INCLUDE_DIRS})
+	set(CUDA_PROPAGATE_HOST_FLAGS OFF)
+	set(CUDA_NVCC_FLAGS -arch=sm_61;-O3;-G;-g;)#根据具体GPU性能更改算力参数
+	link_directories($ENV{CUDA_PATH}/lib/x64)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
-find_path(YAML_CPP_INCLUDE_DIR NAMES yaml_cpp.h PATHS ${YAML_CPP_INCLUDE_DIRS})
-find_library(YAML_CPP_LIBRARY NAMES YAML_CPP PATHS ${YAML_CPP_LIBRARIES})
+  add_definitions(-DUSE_CUDA)
+  set(FIND_CUDA ON CACHE BOOL "Use Cuda")
+else(${CUDA_FOUND})
+	MESSAGE(STATUS "cuda not found!")
+endif(${CUDA_FOUND})
 
-find_package(catkin REQUIRED COMPONENTS
+#=======================================
+# Custom Point Type (XYZI, XYZIRT)
+#=======================================
+set(POINT_TYPE XYZI)
+
+#=======================================
+# Compile setup (ORIGINAL, CATKIN, COLCON)
+#=======================================
+message(=============================================================)
+message("-- ROS_VERSION is $ENV{ROS_VERSION}")
+message(=============================================================)
+
+
+#========================
+# Project details / setup
+#========================
+set(PROJECT_NAME hesai_ros_driver)
+
+add_definitions(-DPROJECT_PATH="${PROJECT_SOURCE_DIR}")
+
+if (CMAKE_BUILD_TYPE STREQUAL "")
+  set(CMAKE_BUILD_TYPE Release)
+  add_definitions(-O3)
+endif()
+
+# ROS 2 (humble 及之后的所有发行版，含 iron/lyrical 等) 的头文件已要求 C++17
+if($ENV{ROS_VERSION} STREQUAL "2")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+else()
+add_definitions(-std=c++14)
+endif()
+
+add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-Wall> $<$<COMPILE_LANGUAGE:C>:-Wall>)
+
+#========================
+# Dependencies Setup
+#========================
+
+#ROS#
+#Catkin#
+if($ENV{ROS_VERSION} MATCHES "1")
+  find_package(roscpp 1.12 QUIET)
+  find_package(roslib QUIET)
+  include_directories(${roscpp_INCLUDE_DIRS} ${roslib_INCLUDE_DIRS})
+  set(ROS_LIBS ${roscpp_LIBRARIES} ${roslib_LIBRARIES})
+  add_definitions(-DROS_FOUND)
+  add_definitions(-DRUN_IN_ROS_WORKSPACE)
+
+  find_package(catkin REQUIRED COMPONENTS
     roscpp
-    roslib
-    std_msgs
     sensor_msgs
-    message_runtime
-    image_transport
-    pcl_conversions
+    std_msgs
     message_generation
-    tf
-)
-add_message_files(
+    roslib)
+
+  add_message_files(
     FILES
-    PandarPacket.msg
-    PandarScan.msg
-)
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-)
-catkin_package(
-    CATKIN_DEPENDS message_runtime
-)
+    "UdpPacket.msg"
+    "UdpFrame.msg"
+    "LossPacket.msg"
+    "Ptp.msg"
+    "Firetime.msg"
+  )
 
-###PandarGeneralRaw
-add_library(PandarGeneral
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/src/input.cc
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/src/pandarGeneral_internal.cc
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/src/pcap_reader.cpp
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/src/pandarGeneral.cc
-)
-target_include_directories(PandarGeneral PRIVATE
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/include
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/
-    ${Boost_INCLUDE_DIRS}
-    ${PCL_INCLUDE_DIRS}
-    ${catkin_INCLUDE_DIRS}
-)
-target_link_libraries(PandarGeneral
-    ${Boost_LIBRARIES}
-    ${PCL_IO_LIBRARIES}
-    Boost::thread
-    pcap
-)
+  generate_messages(
+    DEPENDENCIES
+    std_msgs
+  )
 
-###PandarGeneralSDK
-add_library(PandarGeneralSDK SHARED
-    src/HesaiLidar_General_SDK/src/pandarGeneral_sdk.cc
-    src/HesaiLidar_General_SDK/src/tcp_command_client.c
-    src/HesaiLidar_General_SDK/src/util.c
-)
-target_include_directories(PandarGeneralSDK PRIVATE
-    src/HesaiLidar_General_SDK/
-    src/HesaiLidar_General_SDK/include/
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/include
-    ${Boost_INCLUDE_DIRS}
-    ${PCL_INCLUDE_DIRS}
-    ${YAML_CPP_INCLUDE_DIRS}
-    ${catkin_INCLUDE_DIRS}
-)
 
-target_link_libraries(PandarGeneralSDK 
-    PandarGeneral
-    ${Boost_LIBRARIES}
-    ${PCL_IO_LIBRARIES}
-    ${YAML_CPP_LIBRARIES}
-    ${catkin_LIBRARIES}
-    Boost::thread
-    pcap
-)
+  catkin_package(CATKIN_DEPENDS 
+    sensor_msgs 
+    roslib)
 
-###hesai node
-add_executable(hesai_lidar_node
-    src/main.cc
-)
+endif($ENV{ROS_VERSION} MATCHES "1")
 
-target_include_directories(hesai_lidar_node PRIVATE
-    src/HesaiLidar_General_SDK/include
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/include
-    ${PCL_INCLUDE_DIRS}
-    ${catkin_INCLUDE_DIRS}
-    ${Boost_INCLUDE_DIRS}
-)
+#ROS2#
+if($ENV{ROS_VERSION} MATCHES "2")
 
-target_link_libraries(hesai_lidar_node 
-    ${catkin_LIBRARIES}
-    ${PCL_IO_LIBRARIES}
-    PandarGeneralSDK
-)
+  find_package(rclcpp QUIET)
+  if(rclcpp_FOUND)
 
-add_library(cloud_nodelet src/cloud_nodelet.cc)
+    message(=============================================================)
+    message("-- ROS2 Found. ROS2 Support is turned On.")
+    message(=============================================================)
 
-target_include_directories(cloud_nodelet PRIVATE
-    src/HesaiLidar_General_SDK/include
-    src/HesaiLidar_General_SDK/src/PandarGeneralRaw/include
-    ${PCL_INCLUDE_DIRS}
-    ${catkin_INCLUDE_DIRS}
-    ${Boost_INCLUDE_DIRS}
-)
+    add_definitions(-DROS2_FOUND)
+    include_directories(${rclcpp_INCLUDE_DIRS})
 
-target_link_libraries(cloud_nodelet
-    ${catkin_LIBRARIES}
-    ${PCL_IO_LIBRARIES}
-    PandarGeneralSDK
-)
+    find_package(ament_cmake REQUIRED)
+    find_package(sensor_msgs REQUIRED)
+    find_package(std_msgs REQUIRED)  
+    find_package(rcutils REQUIRED)
+    find_package(rcl_interfaces REQUIRED)
+    find_package(rclcpp_action REQUIRED)
+    find_package(rosidl_typesupport_c REQUIRED) 
+    find_package(rosidl_default_generators REQUIRED)
+    find_package(builtin_interfaces REQUIRED)
+    find_package(std_msgs REQUIRED)
+    
+    rosidl_generate_interfaces(${PROJECT_NAME}
+      "msg/msg_ros2/UdpPacket.msg"
+      "msg/msg_ros2/UdpFrame.msg"
+      "msg/msg_ros2/Firetime.msg"
+      "msg/msg_ros2/Ptp.msg"
+      "msg/msg_ros2/LossPacket.msg"
+      DEPENDENCIES builtin_interfaces std_msgs
+    )
+    ament_export_dependencies(rosidl_default_runtime)                 
+    
+  else(rclcpp_FOUND)
 
-install(TARGETS
-    hesai_lidar_node
-    PandarGeneral
-    PandarGeneralSDK
-    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+    message(=============================================================)
+    message("-- ROS2 Not Found. ROS2 Support is turned Off.")
+    message(=============================================================)
 
-install(DIRECTORY launch/
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/launch
-)
+  endif(rclcpp_FOUND )
+endif($ENV{ROS_VERSION} MATCHES "2")
 
-install(DIRECTORY config/
-    DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
-)
+
+#Others#
+find_package(yaml-cpp REQUIRED)
+
+#Include directory#
+include_directories(${PROJECT_SOURCE_DIR}/src)
+
+#Driver core#
+set(DISENABLE_TEST_CC ON CACHE BOOL "DISENABLE_TEST_CC")  
+add_subdirectory(src/driver/HesaiLidar_SDK_2.0)
+
+#========================
+# Build Setup
+#========================
+
+find_package(Boost REQUIRED COMPONENTS thread)
+include_directories(${Boost_INCLUDE_DIRS})
+link_directories(${Boost_LIBRARY_DIRS})
+
+set(LIB_TARGETS 
+    hesai_sdk_lib
+    log_lib
+    lidar_lib
+    ptcClient_lib
+    source_lib
+    platutils_lib
+    serialClient_lib
+    udpParser_lib
+    )
+
+set(INSTALLABLE_LIB_TARGETS
+    log_lib
+    ptcClient_lib
+    source_lib
+    platutils_lib
+    serialClient_lib
+    )
+
+if(${CUDA_FOUND})
+  add_executable(hesai_ros_driver_node
+    node/hesai_ros_driver_node.cu
+    src/manager/node_manager.cc
+    )
+  set(LIB_TARGETS
+    ${LIB_TARGETS}
+    udpParserGpu_lib
+    )
+  set(INSTALLABLE_LIB_TARGETS
+    ${INSTALLABLE_LIB_TARGETS}
+    udpParserGpu_lib
+    )
+else()
+  add_executable(hesai_ros_driver_node
+    node/hesai_ros_driver_node.cc
+    src/manager/node_manager.cc
+    )
+endif()
+target_link_libraries(hesai_ros_driver_node                   
+            ${YAML_CPP_LIBRARIES}
+            ${Boost_LIBRARIES}
+            ${LIB_TARGETS}
+)              
+
+target_include_directories(hesai_ros_driver_node PRIVATE
+  src/manager
+  src/msg/ros_msg
+  src/msg/rs_msg
+  src/utility
+  ${CMAKE_CURRENT_BINARY_DIR}
+)  
+
+#Ros#
+if($ENV{ROS_VERSION} MATCHES "1")
+  target_link_libraries(hesai_ros_driver_node  ${ROS_LIBS})
+  # Catkin's install() only allows targets declared in this CMakeLists.txt.
+  # SDK targets (log_lib, etc.) are added in add_subdirectory and must not be
+  # listed here; they are already linked into hesai_ros_driver_node.
+  install(TARGETS hesai_ros_driver_node
+          RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+          LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+          ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION})
+  install(DIRECTORY
+          launch
+          rviz
+          config
+          DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+endif($ENV{ROS_VERSION} MATCHES "1")
+
+
+#Ros2#
+
+if($ENV{ROS_VERSION} MATCHES "2")
+  find_package(ament_index_cpp REQUIRED)
+  if(COMMAND ament_target_dependencies)
+    ament_target_dependencies(hesai_ros_driver_node 
+    "ament_index_cpp"
+    "rcl_interfaces"
+    "rclcpp" 
+    "rcutils"
+    "std_msgs" 
+    "sensor_msgs"
+    "rclcpp_action"
+    # "tf2_geometry_msgs"
+    )
+  else()
+    set(ROS2_TARGET_DEPENDENCIES
+      ament_index_cpp
+      rcl_interfaces
+      rclcpp
+      rcutils
+      std_msgs
+      sensor_msgs
+      rclcpp_action
+    )
+    foreach(dependency IN LISTS ROS2_TARGET_DEPENDENCIES)
+      if(DEFINED ${dependency}_TARGETS AND NOT "${${dependency}_TARGETS}" STREQUAL "")
+        target_link_libraries(hesai_ros_driver_node ${${dependency}_TARGETS})
+      elseif(TARGET ${dependency}::${dependency})
+        target_link_libraries(hesai_ros_driver_node ${dependency}::${dependency})
+      elseif(DEFINED ${dependency}_LIBRARIES AND NOT "${${dependency}_LIBRARIES}" STREQUAL "")
+        target_link_libraries(hesai_ros_driver_node ${${dependency}_LIBRARIES})
+      endif()
+
+      if(DEFINED ${dependency}_INCLUDE_DIRS AND NOT "${${dependency}_INCLUDE_DIRS}" STREQUAL "")
+        target_include_directories(hesai_ros_driver_node PUBLIC ${${dependency}_INCLUDE_DIRS})
+      endif()
+    endforeach()
+  endif()
+
+  if(COMMAND rosidl_get_typesupport_target)
+    rosidl_get_typesupport_target(cpp_typesupport_target "${PROJECT_NAME}" "rosidl_typesupport_cpp")
+    target_link_libraries(hesai_ros_driver_node "${cpp_typesupport_target}")
+  else()
+    rosidl_target_interfaces(hesai_ros_driver_node  ${PROJECT_NAME} "rosidl_typesupport_cpp")
+  endif()
+
+  install(TARGETS
+          hesai_ros_driver_node
+          DESTINATION lib/${PROJECT_NAME})
+  install(TARGETS
+          ${INSTALLABLE_LIB_TARGETS}
+          DESTINATION lib)
+
+  install(DIRECTORY
+          launch
+          rviz
+          config
+          DESTINATION share/${PROJECT_NAME})
+
+  ament_package()
+
+endif($ENV{ROS_VERSION} MATCHES "2")

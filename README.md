@@ -1,165 +1,423 @@
-**添加了TimeShare机制，配套新版的硬件同步器，辅助雷达和相机的时间戳对齐**  
+# Introduction to HesaiLidar_ROS_2.0
+This repository includes the ROS Driver for Hesai LiDAR sensor manufactured by Hesai Technology. 
+Developed based on [HesaiLidar_SDK_2.0](https://github.com/HesaiTechnology/HesaiLidar_SDK_2.0), After launched, the project will monitor UDP packets from Lidar,parse data and publish point cloud frames into ROS topic
 
+## Support Lidar type
 
+| Pandar       | OT           | QT           | XT           | AT           | FT           | JT           |
+|:------------|:------------|:------------|:------------|:------------|:------------|:------------|
+| Pandar40P    | OT128        | PandarQT     | PandarXT     | AT128E2X     | FT120        | JT128        |
+| Pandar40M    | OT128_40     | QT128C2X     | PandarXT-16  | AT128P       | FTX          | JT64P        |
+| Pandar64     | -            | -            | XT32M2X      | ATX          | -            | JT16         |
+| Pandar128E3X | -            | -            | -            | -            | -            | -            |
+| Pandar90E3X  | -            | -            | -            | -            | -            | -            |
 
-[![Build Status](https://travis-ci.org/amc-nu/HesaiLidar_Pandar64_ros.svg?branch=master)](https://travis-ci.org/amc-nu/HesaiLidar_Pandar64_ros)
+### Installation dependencies
 
-# HesaiLidar_General_ROS
+Install ROS related dependency libraries, please refer to: http://wiki.ros.org
+    
+- Ubuntu 16.04 - ROS Kinetic desktop
+- Ubuntu 18.04 - ROS Melodic desktop
+- Ubuntu 20.04 - ROS Noetic desktop
+- Ubuntu 18.04 - ROS2 Dashing desktop
+- Ubuntu 20.04 - ROS2 Foxy desktop
+- Ubuntu 22.04 - ROS2 Humble desktop
+- Ubuntu 24.04 - ROS2 Jazzy desktop
+- Ubuntu 26.04 - ROS2 Lyrical desktop
 
-## About the project
-HesaiLidar_General_ROS project includes the ROS Driver for：  
-**PandarQT/Pandar64/Pandar40P/Pandar20A/Pandar20B/Pandar40M/PandarXT**  
-LiDAR sensor manufactured by Hesai Technology.  
+### Clone
 
-Developed based on [HesaiLidar_General_SDK](https://github.com/HesaiTechnology/HesaiLidar_General_SDK), After launched, the project will monitor UDP packets from Lidar, parse data and publish point clouds frames into ROS under topic: ```/pandar```. It can also be used as an official demo showing how to work with HesaiLidar_General_SDK.
+    git clone --recurse-submodules https://github.com/HesaiTechnology/HesaiLidar_ROS_2.0.git
+    
 
-## Environment and Dependencies
-**System environment requirement: Linux + ROS**  
+### Install dependencies
 
-　Recommanded:  
-　Ubuntu 16.04 - with ROS kinetic desktop-full installed or  
-　Ubuntu 18.04 - with ROS melodic desktop-full installed or
-  Ubuntu 20.04 - with ROS noetic desktop-full installed 
-　Check resources on http://ros.org for installation guide 
- 
-**Library Dependencies: libpcap-dev + libyaml-cpp-dev**  
+Boost and yaml-cpp are declared in `package.xml`; the CMake configuration requires the Boost `thread` component and yaml-cpp. After cloning, install all dependencies with `rosdep` from the directory that contains the `src` folder:
+
+    sudo rosdep init     # only once per machine; skip if it reports that it is already initialized
+    rosdep update
+    rosdep install --from-paths src --ignore-src -r -y
+
+On Ubuntu, `rosdep` resolves `boost` to `libboost-all-dev` and `yaml-cpp` to `libyaml-cpp-dev`. If you do not use `rosdep` (for example on an offline machine), install them manually before building:
+
+    sudo apt-get update
+    sudo apt-get install -y libboost-all-dev libyaml-cpp-dev
+
+### Compile and run
+
+- ros1
+
+    Create an `src` folder, copy the source code of the ros driver into it, and then run the following command in the directory where `src` is located:
+        
+        catkin_make
+        source devel/setup.bash
+        roslaunch hesai_ros_driver start.launch
+
+- ros2
+
+    Create an `src` folder, copy the source code of the ros driver into it, and then run the following command in the directory where `src` is located:
+        
+        colcon build --symlink-install
+        . install/local_setup.bash
+
+    For ROS2-Dashing     
+
+        ros2 launch hesai_ros_driver dashing_start.py
+        
+    For other ROS2 version
+
+        ros2 launch hesai_ros_driver start.py
+
+    If you want to use the files in the `install` folder independently for easy project mobility, replace the original build command with the following command:
+
+        colcon build
+
+### Passing CMake arguments to SDK
+
+You can pass CMake arguments to the SDK during compilation to enable/disable specific features or define custom macros.
+
+- ros1 (catkin)
+
+    Use `catkin_make` with `-D` flags to pass CMake arguments:
+
+        catkin_make -DWITH_PTCS_USE=OFF
+        catkin_make -DCMAKE_CXX_FLAGS="-DMY_CUSTOM_MACRO=1"
+
+- ros2 (colcon)
+
+    Use `--cmake-args` to pass CMake arguments:
+
+        colcon build --symlink-install --cmake-args -DWITH_PTCS_USE=OFF
+        colcon build --symlink-install --cmake-args -DCMAKE_CXX_FLAGS="-DMY_CUSTOM_MACRO=1"
+
+    To pass multiple arguments:
+
+        colcon build --symlink-install --cmake-args -DWITH_PTCS_USE=OFF -DFIND_CUDA=ON
+
+**Available CMake options:**
+
+| Option | Type | Default | Description |
+|:-------|:-----|:--------|:------------|
+| `WITH_PTCS_USE` | BOOL | ON | Enable PTC SSL support |
+| `FIND_CUDA` | BOOL | OFF | Enable CUDA GPU acceleration |
+| `CMAKE_CUDA_ARCHITECTURES` | STRING | 61 | CUDA compute capability (e.g., 50/60/61/70/75/80/86/89/90) |
+
+For more details about SDK compile macros, please refer to [compile_macro_control_description](src/driver/HesaiLidar_SDK_2.0/docs/compile_macro_control_description.md).
+
+### CMake library targets (`hesai_ros_driver` dependencies)
+
+These are the SDK CMake targets linked by `hesai_ros_driver`. **Installable** means the target participates in `cmake --install` / the `install` space as a built artifact (ROS 2 / `colcon`); **INTERFACE** targets are header/usage-only aggregates and are not installed as separate libraries. On ROS 1 / catkin, only `hesai_ros_driver_node` is installed: catkin does not allow installing targets defined in `add_subdirectory`, and the static libraries are already linked into the node.
+
+| CMake target | Type | Installable |
+|:-------------|:-----|:------------|
+| `log_lib` | STATIC or SHARED | Yes |
+| `lidar_lib` | INTERFACE | No |
+| `ptcClient_lib` | STATIC | Yes |
+| `source_lib` | STATIC | Yes |
+| `platutils_lib` | STATIC | Yes |
+| `serialClient_lib` | STATIC | Yes |
+| `udpParser_lib` | INTERFACE | No |
+
+### Introduction to the configuration file `config.yaml` parameters
+
+```yaml
+lidar:
+  - driver:
+      use_gpu: false
+      source_type: 1                                  # The type of data source, 1: real-time lidar connection, 2: pcap, 3: packet rosbag, 4: serial    
+      # Depending on the type of source_type, fill in the corresponding configuration block (lidar_udp_type, pcap_type, serial_type)
+      lidar_udp_type:
+        device_ip_address: 192.168.1.201              # host_ip_address. If empty(""), the source ip of the udp point cloud is used
+        udp_port: 2368                                # UDP destination port
+        ptc_port: 9347                                # PTC port of lidar
+        multicast_ip_address: 255.255.255.255
+
+        use_ptc_connected: true                       # Set to false when ptc connection is not used
+        host_ptc_port: 0                              # PTC source port, 0 means auto
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+        recv_point_cloud_timeout: -1                  # The timeout of receiving point cloud
+        ptc_connect_timeout: -1                       # The timeout of ptc connection
+
+        host_ip_address: ""
+        fault_message_port: 0
+
+        standby_mode: -1                              # The standby mode: [-1] is invalit [0] in operation [1] standby
+        speed: -1                                     # The speed: [-1] invalit, you must make sure your set has been supported by the lidar you are using
+        ptc_mode: 0                                   # The ptc mode: [0] tcp [1] tcp_ssl
+        # tcp_ssl use
+        certFile: ""                                  # Represents the path of the user's certificate
+        privateKeyFile: ""                            # Represents the path of the user's private key 
+        caFile: ""                                    # Represents the path of the CA certificate 
+
+      pcap_type:
+        pcap_path: "Your pcap file"                         # The path of pcap file
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+        pcap_play_synchronization: true                     # pcap play rate synchronize with the host time
+        pcap_play_in_loop: false
+        play_rate_: 1.0                                     # pcap play rate 
+      
+      rosbag_type:
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+      serial_type:
+        rs485_com: "Your serial port name for receiving point cloud"  # if using JT16, Port to receive the point cloud
+        rs232_com: "Your serial port name for sending cmd"            # if using JT16, Port to send cmd
+        point_cloud_baudrate: 3125000
+        correction_save_path: ""                                      # turn on when you need to store angle calibration files(from lidar)
+        correction_file_path: "Your correction file path"             # The path of correction file
+      
+      # public module
+      use_timestamp_type: 0                 # 0 use point cloud timestamp; 1 use receive timestamp
+      frame_start_azimuth: 0                # Frame azimuth for Pandar128, range from 1 to 359, set it less than 0 if you do not want to use it      
+      # parser thread num
+      thread_num: 4
+      # transform param
+      transform_flag: false
+      x: 0
+      y: 0
+      z: 0
+      roll: 0
+      pitch: 0
+      yaw: 0
+      # fov config, [fov_start, fov_end] range [1, 359], [-1, -1]means use default
+      fov_start: -1
+      fov_end:  -1
+      channel_fov_filter_path: "Your channel fov filter file path"  # The path of channel_fov_filter file, like channel 0 filter [10, 20] and [30,40]
+      multi_fov_filter_ranges: "" # compare to channel_fov_filter_path, multi_fov_filter_ranges for all channels. example config "[20,30];[40,200]"
+      # other config
+      enable_packet_loss_tool: true         # enable the udp packet loss detection tool
+      distance_correction_flag: false       # set to true when optical centre correction needs to be turned on
+      xt_spot_correction: false             # Set to TRUE when XT S point cloud layering correction is required
+      device_udp_src_port: 0                # Filter point clouds for specified source ports in case of multiple lidar, setting >=1024
+      device_fault_port: 0                  # Filter fault message for specified source ports in case of multiple lidar, setting >=1024
+      frame_frequency: 0                    # The frequency that point cloud sends.
+      default_frame_frequency: 10.0         # The default frequency that point cloud sends.
+      echo_mode_filter: 0                   # return mode filter
+
+    ros:
+      ros_frame_id: hesai_lidar                       # Frame id of packet message and point cloud message
+      ros_recv_packet_topic: /lidar_packets           # Topic used to receive lidar packets from rosbag
+      ros_send_packet_topic: /lidar_packets           # Topic used to send lidar raw packets through ROS
+      ros_send_point_cloud_topic: /lidar_points       # Topic used to send point cloud through ROS
+      ros_send_imu_topic: /lidar_imu                  # Topic used to send lidar imu message
+      ros_send_packet_loss_topic: /lidar_packets_loss # Topic used to monitor packets loss condition through ROS
+      send_packet_ros: false                          # true: Send packets through ROS 
+      send_point_cloud_ros: true                      # true: Send point cloud through ROS    
+      send_imu_ros: true                              # true: Send imu through ROS    
 ```
-$sudo apt install libpcap-dev libyaml-cpp-dev
-```
 
-## Download and Build
 
-**Install `catkin_tools`**
-```
-$ sudo apt-get update
-$ sudo apt-get install python-catkin-tools
-```
-**Download code**  
-```
-$ mkdir -p rosworkspace/src
-$ cd rosworkspace/src
-$ git clone https://github.com/HesaiTechnology/HesaiLidar_General_ROS.git --recursive
-```
-**Build**
-```
-$ cd ..
-$ catkin_make -DCMAKE_BUILD_TYPE=Release
-```
+### Real time playback
 
-## Configuration 
+In the configuration file, set `source_type` to `1`, then configure the parameters under `lidar_udp_type`. Generally, you only need to configure `device_ip_address`, `udp_port`, and `ptc_port`. If the point cloud destination IP is multicast, you need to configure `device_ip_address`. It is recommended to configure `correction_file_path` to prevent point cloud parsing failures when the lidar angle calibration file acquisition fails. Then run start.launch.
+
+### Parsing PCAP file
+
+In the configuration file, set `source_type` to `2`, then configure the parameters under `pcap_type`. Generally, you need to configure `pcap_path`, `correction_file_path`, and `firetime_file_path`. For detailed information about `pcap_play_synchronization` and `pcap_play_in_loop` functionality, please refer to the parameter introduction section in the SDK README. Then run start.launch.
+
+### Record and playback ROSBAG file
+
+- Record ：
+
+    When playing or parsing PCAP in real-time, set `send_packet_ros` to `true`, start another terminal and enter the following command to record the data packet ROSBAG.
+        
+        rosbag record ros_send_packet_topic
+
+- Playback ：
+
+    First, replay the recorded rosbag file `test.bag` using the following command.
+        
+        rosbag play test.bag
+
+    Set the `source_type` in the configuration file to `3`, then configure the parameters under `rosbag_type`. Generally, you need to configure `correction_file_path` , `firetime_file_path` and `ros_recv_packet_topic`(the topic name of rosbag, under `ros`), then run start.launch.
+
+### Parsing serial data
+
+In the configuration file, set `source_type` to `4`, then configure the parameters under `serial_type`. Generally, you need to configure `rs485_com` and `rs232_com`. It is recommended to configure `correction_file_path` (required if `rs232_com` is not used). For other parameters, please refer to the parameter introduction section in the SDK README. Then run start.launch.
+
+### Realize multi lidar fusion
+
+According to the configuration of a single lidar, multiple drivers can be created in `config.yaml`, as shown in the following example
+
+```yaml
+lidar:
+  - driver:
+      use_gpu: false
+      source_type: 1                                  # The type of data source, 1: real-time lidar connection, 2: pcap, 3: packet rosbag, 4: serial    
+      # Depending on the type of source_type, fill in the corresponding configuration block (lidar_udp_type, pcap_type, serial_type)
+      lidar_udp_type:
+        device_ip_address: 192.168.1.201              # host_ip_address. If empty(""), the source ip of the udp point cloud is used
+        udp_port: 2368                                # UDP destination port
+        ptc_port: 9347                                # PTC port of lidar
+        multicast_ip_address: 255.255.255.255
+
+        use_ptc_connected: true                       # Set to false when ptc connection is not used
+        host_ptc_port: 0                              # PTC source port, 0 means auto
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+        recv_point_cloud_timeout: -1                  # The timeout of receiving point cloud
+        ptc_connect_timeout: -1                       # The timeout of ptc connection
+
+        host_ip_address: ""
+        fault_message_port: 0
+
+        standby_mode: -1                              # The standby mode: [-1] is invalit [0] in operation [1] standby
+        speed: -1                                     # The speed: [-1] invalit, you must make sure your set has been supported by the lidar you are using
+        ptc_mode: 0                                   # The ptc mode: [0] tcp [1] tcp_ssl
+        # tcp_ssl use
+        certFile: ""                                  # Represents the path of the user's certificate
+        privateKeyFile: ""                            # Represents the path of the user's private key 
+        caFile: ""                                    # Represents the path of the CA certificate 
+
+      pcap_type:
+        pcap_path: "Your pcap file"                         # The path of pcap file
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+        pcap_play_synchronization: true                     # pcap play rate synchronize with the host time
+        pcap_play_in_loop: false
+        play_rate_: 1.0                                     # pcap play rate 
+      
+      rosbag_type:
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+      serial_type:
+        rs485_com: "Your serial port name for receiving point cloud"  # if using JT16, Port to receive the point cloud
+        rs232_com: "Your serial port name for sending cmd"            # if using JT16, Port to send cmd
+        point_cloud_baudrate: 3125000
+        correction_save_path: ""                                      # turn on when you need to store angle calibration files(from lidar)
+        correction_file_path: "Your correction file path"             # The path of correction file
+      
+      # public module
+      use_timestamp_type: 0                 # 0 use point cloud timestamp; 1 use receive timestamp
+      frame_start_azimuth: 0                # Frame azimuth for Pandar128, range from 1 to 359, set it less than 0 if you do not want to use it      
+      # parser thread num
+      thread_num: 4
+      # transform param
+      transform_flag: false
+      x: 0
+      y: 0
+      z: 0
+      roll: 0
+      pitch: 0
+      yaw: 0
+      # fov config, [fov_start, fov_end] range [1, 359], [-1, -1]means use default
+      fov_start: -1
+      fov_end:  -1
+      channel_fov_filter_path: "Your channel fov filter file path"  # The path of channel_fov_filter file, like channel 0 filter [10, 20] and [30,40]
+      multi_fov_filter_ranges: "" # compare to channel_fov_filter_path, multi_fov_filter_ranges for all channels. example config "[20,30];[40,200]"
+      # other config
+      enable_packet_loss_tool: true         # enable the udp packet loss detection tool
+      distance_correction_flag: false       # set to true when optical centre correction needs to be turned on
+      xt_spot_correction: false             # Set to TRUE when XT S point cloud layering correction is required
+      device_udp_src_port: 0                # Filter point clouds for specified source ports in case of multiple lidar, setting >=1024
+      device_fault_port: 0                  # Filter fault message for specified source ports in case of multiple lidar, setting >=1024
+      frame_frequency: 0                    # The frequency that point cloud sends.
+      default_frame_frequency: 10.0         # The default frequency that point cloud sends.
+      echo_mode_filter: 0                   # return mode filter
+
+    ros:
+      ros_frame_id: hesai_lidar                       # Frame id of packet message and point cloud message
+      ros_recv_packet_topic: /lidar_packets           # Topic used to receive lidar packets from rosbag
+      ros_send_packet_topic: /lidar_packets           # Topic used to send lidar raw packets through ROS
+      ros_send_point_cloud_topic: /lidar_points       # Topic used to send point cloud through ROS
+      ros_send_imu_topic: /lidar_imu                  # Topic used to send lidar imu message
+      ros_send_packet_loss_topic: /lidar_packets_loss # Topic used to monitor packets loss condition through ROS
+      send_packet_ros: false                          # true: Send packets through ROS 
+      send_point_cloud_ros: true                      # true: Send point cloud through ROS    
+      send_imu_ros: true                              # true: Send imu through ROS    
+  - driver:
+      use_gpu: false
+      source_type: 1                                  # The type of data source, 1: real-time lidar connection, 2: pcap, 3: packet rosbag, 4: serial    
+      # Depending on the type of source_type, fill in the corresponding configuration block (lidar_udp_type, pcap_type, serial_type)
+      lidar_udp_type:
+        device_ip_address: 192.168.1.202              # host_ip_address. If empty(""), the source ip of the udp point cloud is used
+        udp_port: 2369                                # UDP destination port
+        ptc_port: 9347                                # PTC port of lidar
+        multicast_ip_address: 255.255.255.255
+
+        use_ptc_connected: true                       # Set to false when ptc connection is not used
+        host_ptc_port: 0                              # PTC source port, 0 means auto
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+        recv_point_cloud_timeout: -1                  # The timeout of receiving point cloud
+        ptc_connect_timeout: -1                       # The timeout of ptc connection
+
+        host_ip_address: ""
+        fault_message_port: 0
+
+        standby_mode: -1                              # The standby mode: [-1] is invalit [0] in operation [1] standby
+        speed: -1                                     # The speed: [-1] invalit, you must make sure your set has been supported by the lidar you are using
+        ptc_mode: 0                                   # The ptc mode: [0] tcp [1] tcp_ssl
+        # tcp_ssl use
+        certFile: ""                                  # Represents the path of the user's certificate
+        privateKeyFile: ""                            # Represents the path of the user's private key 
+        caFile: ""                                    # Represents the path of the CA certificate 
+
+      pcap_type:
+        pcap_path: "Your pcap file"                         # The path of pcap file
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+        pcap_play_synchronization: true                     # pcap play rate synchronize with the host time
+        pcap_play_in_loop: false
+        play_rate_: 1.0                                     # pcap play rate 
+      
+      rosbag_type:
+        correction_file_path: "Your correction file path"   # The path of correction file
+        firetimes_path: "Your firetime file path"           # The path of firetimes file
+
+      serial_type:
+        rs485_com: "Your serial port name for receiving point cloud"  # if using JT16, Port to receive the point cloud
+        rs232_com: "Your serial port name for sending cmd"            # if using JT16, Port to send cmd
+        point_cloud_baudrate: 3125000
+        correction_save_path: ""                                      # turn on when you need to store angle calibration files(from lidar)
+        correction_file_path: "Your correction file path"             # The path of correction file
+      
+      # public module
+      use_timestamp_type: 0                 # 0 use point cloud timestamp; 1 use receive timestamp
+      frame_start_azimuth: 0                # Frame azimuth for Pandar128, range from 1 to 359, set it less than 0 if you do not want to use it      
+      # parser thread num
+      thread_num: 4
+      # transform param
+      transform_flag: false
+      x: 0
+      y: 0
+      z: 0
+      roll: 0
+      pitch: 0
+      yaw: 0
+      # fov config, [fov_start, fov_end] range [1, 359], [-1, -1]means use default
+      fov_start: -1
+      fov_end:  -1
+      channel_fov_filter_path: "Your channel fov filter file path"  # The path of channel_fov_filter file, like channel 0 filter [10, 20] and [30,40]
+      multi_fov_filter_ranges: "" # compare to channel_fov_filter_path, multi_fov_filter_ranges for all channels. example config "[20,30];[40,200]"
+      # other config
+      enable_packet_loss_tool: true         # enable the udp packet loss detection tool
+      distance_correction_flag: false       # set to true when optical centre correction needs to be turned on
+      xt_spot_correction: false             # Set to TRUE when XT S point cloud layering correction is required
+      device_udp_src_port: 0                # Filter point clouds for specified source ports in case of multiple lidar, setting >=1024
+      device_fault_port: 0                  # Filter fault message for specified source ports in case of multiple lidar, setting >=1024
+      frame_frequency: 0                    # The frequency that point cloud sends.
+      default_frame_frequency: 10.0         # The default frequency that point cloud sends.
+      echo_mode_filter: 0                   # return mode filter
+
+    ros:
+      ros_frame_id: hesai_lidar                       # Frame id of packet message and point cloud message
+      ros_recv_packet_topic: /lidar_packets_2           # Topic used to receive lidar packets from rosbag
+      ros_send_packet_topic: /lidar_packets_2           # Topic used to send lidar raw packets through ROS
+      ros_send_point_cloud_topic: /lidar_points_2       # Topic used to send point cloud through ROS
+      ros_send_imu_topic: /lidar_imu_2                  # Topic used to send lidar imu message
+      ros_send_packet_loss_topic: /lidar_packets_loss_2 # Topic used to monitor packets loss condition through ROS
+      send_packet_ros: false                          # true: Send packets through ROS 
+      send_point_cloud_ros: true                      # true: Send point cloud through ROS    
+      send_imu_ros: true                              # true: Send imu through ROS    
 ```
- $ gedit install/share/hesai_lidar/launch/hesai_lidar.launch
-```
-**Reciving data from connected Lidar: config lidar ip&port, leave the pcap_file empty**
-
-|Parameter | Default Value|
-|---------|---------------|
-|server_ip |192.168.1.201|
-|lidar_recv_port |2368|
-|gps_recv_port  |10110|
-|pcap_file ||　　
-|multicast_ip ||
-
-Data source will be from connected Lidar when "pcap_file" set to empty, when "multicast_ip" configured, driver will get data packets from multicast ip address. keep "multicast_ip" empty if you are not using multicast, thus driver will monitor the "liar_recv_port" to get data.
-Make sure parameters above set to the same with Lidar setting
-
-**Reciving data from pcap file: config pcap_file and correction file path**
-
-|Parameter | Value|
-|---------|---------------|
-|pcap_file |pcap file path|
-|lidar_correction_file |lidar correction file path|　
-
-Data source will be from pcap file once "pcap_file" not empty 
-
-**Reciving data from rosbag: config data_type and publish_type,leave the pcap_file empty**
-
-|Parameter | Value|
-|---------|---------------|
-|pcap_file ||
-|publish_type |points|　
-|data_type |rosbag|
-
-Data source will be from rosbag when "pcap_file" is set to empty and "data_type" is set to "rosbag"
-Make sure the parameter "publish_type" is set to "points"
-Make sure the parameter "namespace" in file hesai_lidar.launch is same with the namespace in rosbag
-
-## Run as independent node
-
-1. Make sure current path in the `rosworkspace` directory
-```
-$ source devel/setup.bash
-```
-```
-for PandarQT
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="PandarQT" frame_id:="PandarQT"
-for Pandar64
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="Pandar64" frame_id:="Pandar64"
-for Pandar20A
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="Pandar20A" frame_id:="Pandar20A"
-for Pandar20B
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="Pandar20B" frame_id:="Pandar20B"
-for Pandar40P
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="Pandar40P" frame_id:="Pandar40P"
-for Pandar40M
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="Pandar40M" frame_id:="Pandar40M"
-for PandarXT-32
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="PandarXT-32" frame_id:="PandarXT-32"
-for PandarXT-16
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="PandarXT-16" frame_id:="PandarXT-16"
-for PandarXTM
-$ roslaunch hesai_lidar hesai_lidar.launch lidar_type:="PandarXTM" frame_id:="PandarXTM"
-```
-2. The driver will publish PointCloud messages to the topic `/pandar`  
-3. Open Rviz and add display by topic  
-4. Change fixed frame to frame_id to view published point clouds  
-
-## Run as nodelet
-
-1. Make sure current path in the `rosworkspace` directory
-```
-$ source devel/setup.bash
-```
-```
-for PandarQT
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="PandarQT" frame_id:="PandarQT"
-for Pandar64
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="Pandar64" frame_id:="Pandar64"
-for Pandar20A
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="Pandar20A" frame_id:="Pandar20A"
-for Pandar20B
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="Pandar20B" frame_id:="Pandar20B"
-for Pandar40P
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="Pandar40P" frame_id:="Pandar40P"
-for Pandar40M
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="Pandar40M" frame_id:="Pandar40M"
-for PandarXT-32
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="PandarXT-32" frame_id:="PandarXT-32"
-for PandarXT-16
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="PandarXT-16" frame_id:="PandarXT-16"
-for PandarXTM
-$ roslaunch hesai_lidar cloud_nodelet.launch lidar_type:="PandarXTM" frame_id:="PandarXTM"
-```
-2. The driver will publish PointCloud messages to the topic `/pandar`  
-3. Open Rviz and add display by topic  
-4. Change fixed frame to frame_id to view published point clouds  
-
-## Details of launch file parameters and utilities
-|Parameter | Default Value|
-|---------|---------------|
-|pcap_file|Path of the pcap file, once not empty, driver will get data from pcap file instead of a connected Lidar|
-|server_ip|The IP address of connected Lidar, will be used to get calibration file|
-|lidar_recv_port|The destination port of Lidar, driver will monitor this port to get point clouds packets from Lidar|
-|gps_port|The destination port for Lidar GPS packets, driver will monitor this port to get GPS packets from Lidar|
-|start_angle|Driver will publish one frame point clouds data when azimuth angle step over start_angle, make sure set to within FOV|
-|lidar_type|Lidar module type|
-|frame_id|frame id of published messages|
-|pcldata_type|0:mixed point clouds data type  1:structured point clouds data type|
-|publish_type|default "points":publish point clouds "raw":publish raw UDP packets "both":publish point clouds and UDP packets|
-|timestamp_type|default "": use timestamp from Lidar "realtime" use timestamp from the system  driver running on|
-|data_type|default "":driver will get point clouds packets from Lidar or PCAP "rosbag":driver will subscribe topic /pandar_packets to get point clouds packets|
-|namespace|namesapce of the launching node|
-|lidar_correction_file|Path of calibration file, will be used when not able to get calibration file from a connected Liar|
-|multicast_ip|The multicast IP address of connected Lidar, will be used to get udp packets from multicast ip address|
-|coordinate_correction_flag|default "false":Disable coordinate correction "true":Enable coordinate correction|
-
