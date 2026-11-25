@@ -107,6 +107,9 @@ JT128 使用以太网 UDP 时，将 `config.yaml` 改为 `source_type: 1`，
 配置 `device_ip_address`、`udp_port`、`correction_file_path`（JT128 CSV）即可；
 本 timeshare 修改与型号无关，JT128 同样会自动写 timeshare。
 
+JT128 的 M8 接口线序、PPS/NMEA 电平和与 GUNDA 同步器的接线见
+[JT128_wiring.md](JT128_wiring.md)。
+
 ## 6. 说明
 
 - 旧版 `HesaiLidar_General_ROS` 代码保留在 `main` 分支，本分支为新的 SDK 2.0 驱动 + timeshare。
