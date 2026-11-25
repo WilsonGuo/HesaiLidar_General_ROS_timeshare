@@ -6,7 +6,7 @@
 ## 1. 目录
 
 ```text
-HesaiLidar_ROS_2.0/           # ROS1/ROS2 驱动（上游结构）
+HesaiLidar_ROS_2.0/           # ROS1 驱动源码（上游结构）
 ├── config/
 │   ├── config.yaml           # 上游默认配置（UDP 示例）
 │   └── jt16_serial.yaml      # 新增：JT16 串口配置

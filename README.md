@@ -5,6 +5,9 @@
 This repository includes the ROS Driver for Hesai LiDAR sensor manufactured by Hesai Technology. 
 Developed based on [HesaiLidar_SDK_2.0](https://github.com/HesaiTechnology/HesaiLidar_SDK_2.0), After launched, the project will monitor UDP packets from Lidar,parse data and publish point cloud frames into ROS topic
 
+This branch (`JT`) is built and used with **ROS 1 (catkin)**; see `TIMESHARE.md` for the timeshare
+mechanism and the JT16/JT128 integration notes.
+
 ## Support Lidar type
 
 | Pandar       | OT           | QT           | XT           | AT           | FT           | JT           |
@@ -22,15 +25,10 @@ Install ROS related dependency libraries, please refer to: http://wiki.ros.org
 - Ubuntu 16.04 - ROS Kinetic desktop
 - Ubuntu 18.04 - ROS Melodic desktop
 - Ubuntu 20.04 - ROS Noetic desktop
-- Ubuntu 18.04 - ROS2 Dashing desktop
-- Ubuntu 20.04 - ROS2 Foxy desktop
-- Ubuntu 22.04 - ROS2 Humble desktop
-- Ubuntu 24.04 - ROS2 Jazzy desktop
-- Ubuntu 26.04 - ROS2 Lyrical desktop
 
 ### Clone
 
-    git clone --recurse-submodules https://github.com/HesaiTechnology/HesaiLidar_ROS_2.0.git
+    git clone --recurse-submodules -b JT https://github.com/WilsonGuo/HesaiLidar_General_ROS_timeshare.git
     
 
 ### Install dependencies
@@ -46,56 +44,26 @@ On Ubuntu, `rosdep` resolves `boost` to `libboost-all-dev` and `yaml-cpp` to `li
     sudo apt-get update
     sudo apt-get install -y libboost-all-dev libyaml-cpp-dev
 
-### Compile and run
+### Compile and run (ROS 1 / catkin)
 
-- ros1
+Create an `src` folder, copy the source code of the ros driver into it, and then run the following command in the directory where `src` is located:
 
-    Create an `src` folder, copy the source code of the ros driver into it, and then run the following command in the directory where `src` is located:
-        
-        catkin_make
-        source devel/setup.bash
-        roslaunch hesai_ros_driver start.launch
+    catkin_make
+    source devel/setup.bash
+    roslaunch hesai_ros_driver start.launch
 
-- ros2
+For the JT16 serial setup added in this branch, use:
 
-    Create an `src` folder, copy the source code of the ros driver into it, and then run the following command in the directory where `src` is located:
-        
-        colcon build --symlink-install
-        . install/local_setup.bash
-
-    For ROS2-Dashing     
-
-        ros2 launch hesai_ros_driver dashing_start.py
-        
-    For other ROS2 version
-
-        ros2 launch hesai_ros_driver start.py
-
-    If you want to use the files in the `install` folder independently for easy project mobility, replace the original build command with the following command:
-
-        colcon build
+    roslaunch hesai_ros_driver jt16_serial.launch
 
 ### Passing CMake arguments to SDK
 
 You can pass CMake arguments to the SDK during compilation to enable/disable specific features or define custom macros.
 
-- ros1 (catkin)
+Use `catkin_make` with `-D` flags to pass CMake arguments:
 
-    Use `catkin_make` with `-D` flags to pass CMake arguments:
-
-        catkin_make -DWITH_PTCS_USE=OFF
-        catkin_make -DCMAKE_CXX_FLAGS="-DMY_CUSTOM_MACRO=1"
-
-- ros2 (colcon)
-
-    Use `--cmake-args` to pass CMake arguments:
-
-        colcon build --symlink-install --cmake-args -DWITH_PTCS_USE=OFF
-        colcon build --symlink-install --cmake-args -DCMAKE_CXX_FLAGS="-DMY_CUSTOM_MACRO=1"
-
-    To pass multiple arguments:
-
-        colcon build --symlink-install --cmake-args -DWITH_PTCS_USE=OFF -DFIND_CUDA=ON
+    catkin_make -DWITH_PTCS_USE=OFF
+    catkin_make -DCMAKE_CXX_FLAGS="-DMY_CUSTOM_MACRO=1"
 
 **Available CMake options:**
 
@@ -109,7 +77,7 @@ For more details about SDK compile macros, please refer to [compile_macro_contro
 
 ### CMake library targets (`hesai_ros_driver` dependencies)
 
-These are the SDK CMake targets linked by `hesai_ros_driver`. **Installable** means the target participates in `cmake --install` / the `install` space as a built artifact (ROS 2 / `colcon`); **INTERFACE** targets are header/usage-only aggregates and are not installed as separate libraries. On ROS 1 / catkin, only `hesai_ros_driver_node` is installed: catkin does not allow installing targets defined in `add_subdirectory`, and the static libraries are already linked into the node.
+These are the SDK CMake targets linked by `hesai_ros_driver`. On ROS 1 / catkin, only `hesai_ros_driver_node` is installed: catkin does not allow installing targets defined in `add_subdirectory`, and the static libraries are already linked into the node. **INTERFACE** targets are header/usage-only aggregates and are not installed as separate libraries.
 
 | CMake target | Type | Installable |
 |:-------------|:-----|:------------|
