@@ -60,12 +60,21 @@ JT128 需要外部 GNSS 授时（PPS + NMEA），同步器提供：
 
 注意：
 
-1. **JT128 的 NMEA 是 RS232 电平**，与 JT16 直连口的 3.3 V TTL 不同；
+1. **JT128 出厂默认时钟源是 PTP**（1588v2 / 802.1AS）；PTP 模式不需要 PPS 线。
+   使用 GUNDA 同步器的 PPS + GPRMC 前，必须先在 LidarUtilities（或 PTC API）里把
+   **clock source 切换到 GNSS**，否则即使接好 PPS/NMEA 也仍然是 PTP/内部时间。
+2. **JT128 的 NMEA 是 RS232 电平**，与 JT16 直连口的 3.3 V TTL 不同；
    如果同步器 LIDAR1 实测是 3.3 V TTL，需要加 RS232 电平转换（如 MAX3232）。
-2. NMEA 波特率图中未标注；GUNDA LIDAR1 默认 9600，JT128 侧需按手册/实机配置确认，
+3. NMEA 波特率图中未标注；GUNDA LIDAR1 默认 9600，JT128 侧需按手册/实机配置确认，
    两边必须一致。
-3. PPS 要求 3.3 V；GUNDA TIM2 输出为 3.3 V，周期 1 s、高电平 100 ms。
-4. 供电范围 9~32 V，比 JT16（12~16 V）宽；建议按 JT128 手册留足电流余量并共地。
+4. PPS 要求 3.3 V；GUNDA TIM2 输出为 3.3 V，周期 1 s、高电平 100 ms。
+5. **GNSS 模式时序要求**（JT128 手册 J01）：PPS 周期 1 s ± 50 µs、脉宽 ≥1 ms
+   （建议 10–100 ms）；NMEA 要在本秒 PPS 上升沿之后开始、在 PPS 下降沿之后结束，
+   并且距下一秒上升沿至少 100 ms。
+   GUNDA 的 GPRMC 约 72–85 ms 发完，而 PPS 高电平为 100 ms，NMEA 可能在
+   PPS 下降沿之前就结束，**存在与 JT16 类似的时序偏差**：建议用示波器实测
+   （或临时把固件 PPS 脉宽改成 10 ms、或给 RMC 增加约 40 ms 起始延时）后再确认锁定。
+6. 供电范围 9~32 V，比 JT16（12~16 V）宽；建议按 JT128 手册留足电流余量并共地。
 
 ## 4. ROS 驱动配置（JT128）
 
@@ -108,6 +117,8 @@ rostopic echo -n1 /lidar_points/header
 
 说明：
 
+- JT128 的默认时钟源是 PTP；要使用 GUNDA 的 PPS + GPRMC，需要先在 LidarUtilities/PTC
+  中把 clock source 切到 GNSS，并确认点云时间戳已经对到当前 UTC；
 - JT128 的 timeshare 与 JT16 共用同一套实现：驱动启动后会自动写 `$HOME/timeshare`，
   不需要额外配置；
 - JT128 的额外点字段（confidence / weightFactor / dirtyLevel / noiseLevel / envLight）
